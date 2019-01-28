@@ -53,6 +53,8 @@ TEST_CASE("Basic options", "[options]")
     ("a,av", "a short option with a value", cxxopts::value<std::string>())
     ("6,six", "a short number option")
     ("p, space", "an option with space between short and long")
+    ("o,o-ption", "option with a dash")
+    ("z,zo_ption", "option with dash", cxxopts::value<std::string>())
     ("nothing", "won't exist", cxxopts::value<std::string>())
     ;
 
@@ -67,6 +69,8 @@ TEST_CASE("Basic options", "[options]")
     "-6",
     "-p",
     "--space",
+    "--o-ption",
+    "--zo_ption=value",
   });
 
   char** actual_argv = argv.argv();
@@ -83,9 +87,12 @@ TEST_CASE("Basic options", "[options]")
   CHECK(result.count("6") == 1);
   CHECK(result.count("p") == 2);
   CHECK(result.count("space") == 2);
+  CHECK(result.count("o-ption") == 1);
+  CHECK(result.count("zo_ption") == 1);
+  CHECK(result["zo_ption"].as<std::string>() == "value");
 
   auto& arguments = result.arguments();
-  REQUIRE(arguments.size() == 7);
+  REQUIRE(arguments.size() == 9);
   CHECK(arguments[0].key() == "long");
   CHECK(arguments[0].value() == "true");
   CHECK(arguments[0].as<bool>() == true);
@@ -93,7 +100,7 @@ TEST_CASE("Basic options", "[options]")
   CHECK(arguments[1].key() == "short");
   CHECK(arguments[2].key() == "value");
   CHECK(arguments[3].key() == "av");
-  
+
   CHECK_THROWS_AS(result["nothing"].as<std::string>(), std::domain_error&);
 }
 
@@ -375,6 +382,28 @@ TEST_CASE("Integer bounds", "[integer]")
   }
 }
 
+TEST_CASE("Integer assignment", "[integer]")
+{
+  cxxopts::Options options("integer_assignment", "check = integer");
+
+  options.add_options()
+    ("int", "just a value", cxxopts::value<int>())
+    ;
+
+  Argv argv({
+      "tester",
+      "--int=123",
+  });
+
+  char** actual_argv = argv.argv();
+  auto argc = argv.argc();
+
+  auto result = options.parse(argc, actual_argv);
+
+  CHECK(result.count("int") == 1);
+  CHECK(result["int"].as<int>() == 123);
+}
+
 TEST_CASE("Overflow on boundary", "[integer]")
 {
   using namespace cxxopts::values;
@@ -535,16 +564,49 @@ TEST_CASE("Unrecognised options", "[options]") {
 
 TEST_CASE("Invalid option syntax", "[options]") {
   cxxopts::Options options("invalid_syntax", " - test invalid syntax");
+  {
+    Argv av({
+        "invalid_syntax",
+        "--a",
+    });
 
-  Argv av({
-    "invalid_syntax",
-    "--a",
-  });
+    char **argv = av.argv();
+    auto argc = av.argc();
 
-  char** argv = av.argv();
-  auto argc = av.argc();
-
-  SECTION("Default behaviour") {
-    CHECK_THROWS_AS(options.parse(argc, argv), cxxopts::option_syntax_exception&);
+    SECTION("Default behaviour") {
+      CHECK_THROWS_AS(options.parse(argc, argv),
+                      cxxopts::option_syntax_exception &);
+    }
   }
+
+  {
+    Argv av({
+        "invalid_syntax",
+        "--_a",
+    });
+
+    char **argv = av.argv();
+    auto argc = av.argc();
+
+    SECTION("Default behaviour") {
+      CHECK_THROWS_AS(options.parse(argc, argv),
+                      cxxopts::option_syntax_exception &);
+    }
+  }
+
+  {
+    Argv av({
+        "invalid_syntax",
+        "--a^b",
+    });
+
+    char **argv = av.argv();
+    auto argc = av.argc();
+
+    SECTION("Default behaviour") {
+      CHECK_THROWS_AS(options.parse(argc, argv),
+                      cxxopts::option_syntax_exception &);
+    }
+  }
+
 }
